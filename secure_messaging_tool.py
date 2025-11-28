@@ -1,10 +1,18 @@
 import tkinter as tk
 from tkinter import messagebox, ttk
 from cryptography.fernet import Fernet
+import os
 
 class SecureMessagingTool:
     def __init__(self):
-        self.key = Fernet.generate_key()
+        self.key_file = "encryption_key.txt"
+        if not os.path.exists(self.key_file):
+            self.key = Fernet.generate_key()
+            with open(self.key_file, "wb") as f:
+                f.write(self.key)
+        else:
+            with open(self.key_file, "rb") as f:
+                self.key = f.read()
         self.cipher_suite = Fernet(self.key)
 
     def encrypt_message(self, message):
@@ -20,7 +28,7 @@ class EncryptionWindow:
         self.parent = parent
         self.secure_messaging_tool = SecureMessagingTool()
 
-        self.message_label = tk.Label(parent, text="Message:", font=("Arial", 16))
+        self.message_label = tk.Label(parent, text="Enter Your Message:", font=("Arial", 16))
         self.message_label.pack(pady=10)
 
         self.message_entry = tk.Entry(parent, font=("Arial", 16), width=50)
@@ -29,7 +37,7 @@ class EncryptionWindow:
         self.encrypt_button = tk.Button(parent, text="Encrypt", font=("Arial", 16), command=self.encrypt_message)
         self.encrypt_button.pack(pady=10)
 
-        self.encrypted_message_label = tk.Label(parent, text="Encrypted Message:", font=("Arial", 16))
+        self.encrypted_message_label = tk.Label(parent, text="There is Your Message Code:", font=("Arial", 16))
         self.encrypted_message_label.pack(pady=10)
 
         self.encrypted_message_entry = tk.Entry(parent, font=("Arial", 16), width=50)
@@ -46,7 +54,7 @@ class DecryptionWindow:
         self.parent = parent
         self.secure_messaging_tool = SecureMessagingTool()
 
-        self.encrypted_message_label = tk.Label(parent, text="Encrypted Message:", font=("Arial", 16))
+        self.encrypted_message_label = tk.Label(parent, text="Enter Your Code Message:", font=("Arial", 16))
         self.encrypted_message_label.pack(pady=10)
 
         self.encrypted_message_entry = tk.Entry(parent, font=("Arial", 16), width=50)
@@ -55,7 +63,7 @@ class DecryptionWindow:
         self.decrypt_button = tk.Button(parent, text="Decrypt", font=("Arial", 16), command=self.decrypt_message)
         self.decrypt_button.pack(pady=10)
 
-        self.decrypted_message_label = tk.Label(parent, text="Decrypted Message:", font=("Arial", 16))
+        self.decrypted_message_label = tk.Label(parent, text="This is the Message:", font=("Arial", 16))
         self.decrypted_message_label.pack(pady=10)
 
         self.decrypted_message_entry = tk.Entry(parent, font=("Arial", 16), width=50)
