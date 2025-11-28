@@ -1,5 +1,5 @@
 import tkinter as tk
-from tkinter import messagebox
+from tkinter import messagebox, ttk
 from cryptography.fernet import Fernet
 
 class SecureMessagingTool:
