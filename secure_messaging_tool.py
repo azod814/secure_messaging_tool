@@ -25,9 +25,9 @@ class SecureMessagingTool:
         return decrypted_message.decode()
 
 class EncryptionWindow:
-    def __init__(self, parent):
+    def __init__(self, parent, secure_messaging_tool):
         self.parent = parent
-        self.secure_messaging_tool = SecureMessagingTool()
+        self.secure_messaging_tool = secure_messaging_tool
 
         self.message_label = tk.Label(parent, text="Enter Your Message:", font=("Arial", 16))
         self.message_label.pack(pady=10)
@@ -59,9 +59,9 @@ class EncryptionWindow:
         messagebox.showinfo("Success", "Code copied to clipboard!")
 
 class DecryptionWindow:
-    def __init__(self, parent):
+    def __init__(self, parent, secure_messaging_tool):
         self.parent = parent
-        self.secure_messaging_tool = SecureMessagingTool()
+        self.secure_messaging_tool = secure_messaging_tool
 
         self.encrypted_message_label = tk.Label(parent, text="Enter Your Code Message:", font=("Arial", 16))
         self.encrypted_message_label.pack(pady=10)
@@ -85,6 +85,7 @@ class DecryptionWindow:
         self.decrypted_message_entry.insert(0, decrypted_message)
 
 if __name__ == "__main__":
+    secure_messaging_tool = SecureMessagingTool()
     root = tk.Tk()
     root.title("Secure Messaging Tool")
     root.geometry("800x600")
@@ -101,9 +102,9 @@ if __name__ == "__main__":
     tab_control.add(decryption_tab, text="Decryption")
 
     # Create encryption window
-    encryption_window = EncryptionWindow(encryption_tab)
+    encryption_window = EncryptionWindow(encryption_tab, secure_messaging_tool)
 
     # Create decryption window
-    decryption_window = DecryptionWindow(decryption_tab)
+    decryption_window = DecryptionWindow(decryption_tab, secure_messaging_tool)
 
     root.mainloop()
