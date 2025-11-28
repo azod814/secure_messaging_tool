@@ -1,6 +1,6 @@
 import tkinter as tk
 from tkinter import messagebox, ttk
-from cryptography.fernet import Fernet
+from cryptography.fernet import Fernet, InvalidToken
 import os
 import pyperclip
 
@@ -21,8 +21,11 @@ class SecureMessagingTool:
         return encrypted_message.decode()
 
     def decrypt_message(self, encrypted_message):
-        decrypted_message = self.cipher_suite.decrypt(encrypted_message.encode())
-        return decrypted_message.decode()
+        try:
+            decrypted_message = self.cipher_suite.decrypt(encrypted_message.encode())
+            return decrypted_message.decode()
+        except InvalidToken:
+            raise ValueError("Invalid encrypted message")
 
 class EncryptionWindow:
     def __init__(self, parent, secure_messaging_tool):
@@ -80,9 +83,12 @@ class DecryptionWindow:
 
     def decrypt_message(self):
         encrypted_message = self.encrypted_message_entry.get()
-        decrypted_message = self.secure_messaging_tool.decrypt_message(encrypted_message)
-        self.decrypted_message_entry.delete(0, tk.END)
-        self.decrypted_message_entry.insert(0, decrypted_message)
+        try:
+            decrypted_message = self.secure_messaging_tool.decrypt_message(encrypted_message)
+            self.decrypted_message_entry.delete(0, tk.END)
+            self.decrypted_message_entry.insert(0, decrypted_message)
+        except ValueError as e:
+            messagebox.showerror("Error", str(e))
 
 if __name__ == "__main__":
     secure_messaging_tool = SecureMessagingTool()
