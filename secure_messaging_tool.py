@@ -2,6 +2,7 @@ import tkinter as tk
 from tkinter import messagebox, ttk
 from cryptography.fernet import Fernet
 import os
+import pyperclip
 
 class SecureMessagingTool:
     def __init__(self):
@@ -43,11 +44,19 @@ class EncryptionWindow:
         self.encrypted_message_entry = tk.Entry(parent, font=("Arial", 16), width=50)
         self.encrypted_message_entry.pack(pady=10)
 
+        self.copy_button = tk.Button(parent, text="Copy Code", font=("Arial", 16), command=self.copy_code)
+        self.copy_button.pack(pady=10)
+
     def encrypt_message(self):
         message = self.message_entry.get()
         encrypted_message = self.secure_messaging_tool.encrypt_message(message)
         self.encrypted_message_entry.delete(0, tk.END)
         self.encrypted_message_entry.insert(0, encrypted_message)
+
+    def copy_code(self):
+        encrypted_message = self.encrypted_message_entry.get()
+        pyperclip.copy(encrypted_message)
+        messagebox.showinfo("Success", "Code copied to clipboard!")
 
 class DecryptionWindow:
     def __init__(self, parent):
