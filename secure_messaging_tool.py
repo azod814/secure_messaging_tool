@@ -1,5 +1,5 @@
 import tkinter as tk
-from tkinter import messagebox, ttk
+from tkinter import messagebox, ttk, filedialog
 from cryptography.fernet import Fernet, InvalidToken
 import os
 import pyperclip
@@ -12,7 +12,7 @@ class SecureMessagingTool:
                 self.key = Fernet.generate_key()
                 with open(self.key_file, "wb") as f:
                     f.write(self.key)
-                messagebox.showinfo("Info", f"New key generated and saved to {self.key_file}. Share this file with your friend!")
+                messagebox.showinfo("Info", f"New key generated! Share {self.key_file} with your friend!")
             else:
                 with open(self.key_file, "rb") as f:
                     self.key = f.read()
@@ -32,28 +32,44 @@ class SecureMessagingTool:
         except InvalidToken:
             raise ValueError("Invalid encrypted message or wrong key!")
 
+    def encrypt_file(self, input_file_path, output_file_path):
+        with open(input_file_path, "rb") as f:
+            file_data = f.read()
+        encrypted_data = self.cipher_suite.encrypt(file_data)
+        with open(output_file_path, "wb") as f:
+            f.write(encrypted_data)
+
+    def decrypt_file(self, input_file_path, output_file_path):
+        with open(input_file_path, "rb") as f:
+            encrypted_data = f.read()
+        decrypted_data = self.cipher_suite.decrypt(encrypted_data)
+        with open(output_file_path, "wb") as f:
+            f.write(decrypted_data)
+
 class EncryptionWindow:
     def __init__(self, parent, secure_messaging_tool):
         self.parent = parent
         self.secure_messaging_tool = secure_messaging_tool
 
-        self.message_label = tk.Label(parent, text="Enter Your Message:", font=("Arial", 16))
-        self.message_label.pack(pady=10)
+        # Text Encryption
+        self.message_label = tk.Label(parent, text="Enter Your Message:", font=("Arial", 14))
+        self.message_label.pack(pady=5)
+        self.message_entry = tk.Entry(parent, font=("Arial", 14), width=50)
+        self.message_entry.pack(pady=5)
+        self.encrypt_button = tk.Button(parent, text="Encrypt Text", font=("Arial", 14), command=self.encrypt_message)
+        self.encrypt_button.pack(pady=5)
+        self.encrypted_message_label = tk.Label(parent, text="Encrypted Message:", font=("Arial", 14))
+        self.encrypted_message_label.pack(pady=5)
+        self.encrypted_message_entry = tk.Entry(parent, font=("Arial", 14), width=50)
+        self.encrypted_message_entry.pack(pady=5)
+        self.copy_button = tk.Button(parent, text="Copy Text", font=("Arial", 14), command=self.copy_code)
+        self.copy_button.pack(pady=5)
 
-        self.message_entry = tk.Entry(parent, font=("Arial", 16), width=50)
-        self.message_entry.pack(pady=10)
-
-        self.encrypt_button = tk.Button(parent, text="Encrypt", font=("Arial", 16), command=self.encrypt_message)
-        self.encrypt_button.pack(pady=10)
-
-        self.encrypted_message_label = tk.Label(parent, text="Encrypted Message:", font=("Arial", 16))
-        self.encrypted_message_label.pack(pady=10)
-
-        self.encrypted_message_entry = tk.Entry(parent, font=("Arial", 16), width=50)
-        self.encrypted_message_entry.pack(pady=10)
-
-        self.copy_button = tk.Button(parent, text="Copy", font=("Arial", 16), command=self.copy_code)
-        self.copy_button.pack(pady=10)
+        # File Encryption
+        self.file_label = tk.Label(parent, text="Select File to Encrypt:", font=("Arial", 14))
+        self.file_label.pack(pady=5)
+        self.select_file_button = tk.Button(parent, text="Select File", font=("Arial", 14), command=self.select_file_to_encrypt)
+        self.select_file_button.pack(pady=5)
 
     def encrypt_message(self):
         message = self.message_entry.get()
@@ -70,27 +86,41 @@ class EncryptionWindow:
             messagebox.showerror("Error", "No message to copy!")
             return
         pyperclip.copy(encrypted_message)
-        messagebox.showinfo("Success", "Encrypted message copied to clipboard!")
+        messagebox.showinfo("Success", "Encrypted message copied!")
+
+    def select_file_to_encrypt(self):
+        file_path = filedialog.askopenfilename()
+        if file_path:
+            output_path = filedialog.asksaveasfilename(defaultextension=".enc", filetypes=[("Encrypted Files", "*.enc")])
+            if output_path:
+                try:
+                    self.secure_messaging_tool.encrypt_file(file_path, output_path)
+                    messagebox.showinfo("Success", f"File encrypted and saved as {output_path}!")
+                except Exception as e:
+                    messagebox.showerror("Error", f"Failed to encrypt file: {e}")
 
 class DecryptionWindow:
     def __init__(self, parent, secure_messaging_tool):
         self.parent = parent
         self.secure_messaging_tool = secure_messaging_tool
 
-        self.encrypted_message_label = tk.Label(parent, text="Enter Encrypted Message:", font=("Arial", 16))
-        self.encrypted_message_label.pack(pady=10)
+        # Text Decryption
+        self.encrypted_message_label = tk.Label(parent, text="Enter Encrypted Message:", font=("Arial", 14))
+        self.encrypted_message_label.pack(pady=5)
+        self.encrypted_message_entry = tk.Entry(parent, font=("Arial", 14), width=50)
+        self.encrypted_message_entry.pack(pady=5)
+        self.decrypt_button = tk.Button(parent, text="Decrypt Text", font=("Arial", 14), command=self.decrypt_message)
+        self.decrypt_button.pack(pady=5)
+        self.decrypted_message_label = tk.Label(parent, text="Decrypted Message:", font=("Arial", 14))
+        self.decrypted_message_label.pack(pady=5)
+        self.decrypted_message_entry = tk.Entry(parent, font=("Arial", 14), width=50)
+        self.decrypted_message_entry.pack(pady=5)
 
-        self.encrypted_message_entry = tk.Entry(parent, font=("Arial", 16), width=50)
-        self.encrypted_message_entry.pack(pady=10)
-
-        self.decrypt_button = tk.Button(parent, text="Decrypt", font=("Arial", 16), command=self.decrypt_message)
-        self.decrypt_button.pack(pady=10)
-
-        self.decrypted_message_label = tk.Label(parent, text="Decrypted Message:", font=("Arial", 16))
-        self.decrypted_message_label.pack(pady=10)
-
-        self.decrypted_message_entry = tk.Entry(parent, font=("Arial", 16), width=50)
-        self.decrypted_message_entry.pack(pady=10)
+        # File Decryption
+        self.file_label = tk.Label(parent, text="Select File to Decrypt:", font=("Arial", 14))
+        self.file_label.pack(pady=5)
+        self.select_file_button = tk.Button(parent, text="Select File", font=("Arial", 14), command=self.select_file_to_decrypt)
+        self.select_file_button.pack(pady=5)
 
     def decrypt_message(self):
         encrypted_message = self.encrypted_message_entry.get()
@@ -103,6 +133,17 @@ class DecryptionWindow:
             self.decrypted_message_entry.insert(0, decrypted_message)
         except ValueError as e:
             messagebox.showerror("Error", str(e))
+
+    def select_file_to_decrypt(self):
+        file_path = filedialog.askopenfilename(filetypes=[("Encrypted Files", "*.enc")])
+        if file_path:
+            output_path = filedialog.asksaveasfilename()
+            if output_path:
+                try:
+                    self.secure_messaging_tool.decrypt_file(file_path, output_path)
+                    messagebox.showinfo("Success", f"File decrypted and saved as {output_path}!")
+                except Exception as e:
+                    messagebox.showerror("Error", f"Failed to decrypt file: {e}")
 
 if __name__ == "__main__":
     secure_messaging_tool = SecureMessagingTool()
