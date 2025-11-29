@@ -5,16 +5,6 @@ import os
 import pyperclip
 import sys
 import ctypes
-import base64
-
-# ---------------------------
-# Secure Messaging Tool (Updated GUI)
-# Features added:
-# - Modern/futuristic styling
-# - Non-blocking auto-dismissing toast (2 seconds) when copying encrypted text
-# - Improved layout and UX
-# - Minimal external dependency requirements: cryptography, pyperclip
-# ---------------------------
 
 # Hide terminal window (Windows)
 if sys.platform == "win32":
@@ -31,14 +21,10 @@ class SecureMessagingTool:
                 self.key = Fernet.generate_key()
                 with open(self.key_file, "wb") as f:
                     f.write(self.key)
-                # Show a one-time info (blocking) to inform user to share key
                 messagebox.showinfo("Info", f"New key generated! Share {self.key_file} with your friend!")
             else:
                 with open(self.key_file, "rb") as f:
                     self.key = f.read()
-            # Validate key format
-            if not isinstance(self.key, (bytes, bytearray)):
-                self.key = self.key.encode()
             self.cipher_suite = Fernet(self.key)
         except Exception as e:
             messagebox.showerror("Error", f"Failed to load key: {e}")
@@ -69,26 +55,18 @@ class SecureMessagingTool:
         with open(output_file_path, "wb") as f:
             f.write(decrypted_data)
 
-# ---------------------------
-# Helper: Toast popup (auto-destroy)
-# ---------------------------
 def show_toast(root, message: str, duration=2000):
-    """Creates a frameless toast-like Toplevel that auto-destroys after duration (ms)."""
-    # Position toast centered above root window
     toast = tk.Toplevel(root)
-    toast.overrideredirect(True)  # Remove window decorations
+    toast.overrideredirect(True)
     toast.attributes("-topmost", True)
-    # Slight transparency for futuristic look
     try:
         toast.attributes("-alpha", 0.95)
     except Exception:
         pass
-    # Styling
     frame = tk.Frame(toast, bg="#111827", bd=1, relief=tk.RIDGE)
     frame.pack(fill=tk.BOTH, expand=True)
     label = tk.Label(frame, text=message, font=("Helvetica", 10, "bold"), bg="#111827", fg="#a5b4fc", padx=12, pady=8)
     label.pack()
-    # Place calculation
     root.update_idletasks()
     rx = root.winfo_rootx()
     ry = root.winfo_rooty()
@@ -97,14 +75,10 @@ def show_toast(root, message: str, duration=2000):
     tw = toast.winfo_reqwidth()
     th = toast.winfo_reqheight()
     x = rx + (rw - tw) // 2
-    y = ry + int(rh * 0.08)  # Near top of app
+    y = ry + int(rh * 0.08)
     toast.geometry(f"+{x}+{y}")
-    # Destroy after duration (ms)
     toast.after(duration, toast.destroy)
 
-# ---------------------------
-# GUI Windows
-# ---------------------------
 class EncryptionWindow:
     def __init__(self, parent, secure_messaging_tool, root):
         self.parent = parent
@@ -118,7 +92,6 @@ class EncryptionWindow:
         title.pack(pady=(14, 6))
         container = tk.Frame(self.parent, bg="#0b1220")
         container.pack(fill=tk.BOTH, expand=True, padx=16, pady=8)
-        # Message entry area (multi-line)
         left = tk.Frame(container, bg="#0b1220")
         left.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 8))
         msg_label = tk.Label(left, text="Enter message:", bg="#0b1220", fg="#dbeafe", font=("Segoe UI", 11, "bold"))
@@ -133,7 +106,6 @@ class EncryptionWindow:
         copy_btn.pack(side=tk.LEFT, padx=(0, 8))
         save_btn = tk.Button(btn_frame, text="Save .enc", bg="#ef4444", fg="white", font=("Segoe UI", 10, "bold"), command=self.save_encrypted_message, bd=0, padx=12, pady=6)
         save_btn.pack(side=tk.LEFT)
-        # Right side: Encrypted output & file ops
         right = tk.Frame(container, bg="#071027")
         right.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         enc_label = tk.Label(right, text="Encrypted output:", bg="#071027", fg="#dbeafe", font=("Segoe UI", 11, "bold"))
@@ -170,7 +142,6 @@ class EncryptionWindow:
             return
         try:
             pyperclip.copy(encrypted_message)
-            # Non-blocking toast (2 seconds)
             show_toast(self.root, "Encrypted message copied to clipboard", duration=2000)
             self.status_var.set("Copied to clipboard")
         except Exception as e:
@@ -181,11 +152,11 @@ class EncryptionWindow:
         if not encrypted_message:
             messagebox.showerror("Error", "No encrypted message to save!")
             return
-        output_path = filedialog.asksaveasfilename(defaultextension=".enc", filetypes=[("Encrypted Files", ".enc"), ("Text Files", ".txt")])
+        output_path = filedialog.asksaveasfilename(defaultextension=".enc", filetypes=[("Encrypted Files", "*.enc")])
         if output_path:
             try:
-                with open(output_path, "w") as f:
-                    f.write(encrypted_message)
+                with open(output_path, "wb") as f:  # Binary mode
+                    f.write(encrypted_message.encode('utf-8'))
                 self.status_var.set(f"Saved: {os.path.basename(output_path)}")
                 show_toast(self.root, "Encrypted file saved", duration=2000)
             except Exception as e:
@@ -248,13 +219,16 @@ class DecryptionWindow:
             messagebox.showerror("Error", f"Failed to decrypt: {e}")
 
     def load_encrypted_message(self):
-        file_path = filedialog.askopenfilename(filetypes=[("Encrypted Files", ".enc"), ("Text Files", ".txt")])
+        file_path = filedialog.askopenfilename(filetypes=[("Encrypted Files", "*.enc")])
         if file_path:
-            with open(file_path, "r") as f:
-                encrypted_message = f.read()
-            self.encrypted_text.delete("1.0", tk.END)
-            self.encrypted_text.insert(tk.END, encrypted_message)
-            show_toast(self.root, "Loaded encrypted file", duration=1600)
+            try:
+                with open(file_path, "rb") as f:  # Binary mode
+                    encrypted_message = f.read().decode('utf-8', errors='ignore')
+                self.encrypted_text.delete("1.0", tk.END)
+                self.encrypted_text.insert(tk.END, encrypted_message)
+                show_toast(self.root, "Loaded encrypted file", duration=1600)
+            except Exception as e:
+                messagebox.showerror("Error", f"Failed to load file: {e}")
 
     def select_file_to_decrypt(self):
         file_path = filedialog.askopenfilename(filetypes=[("Encrypted Files", "*.enc")])
@@ -267,9 +241,6 @@ class DecryptionWindow:
                 except Exception as e:
                     messagebox.showerror("Error", f"Failed to decrypt file: {e}")
 
-# ---------------------------
-# Banner (console) - kept for fun
-# ---------------------------
 def show_banner():
     banner = """
                 ███████╗███████╗ ██████╗██╗   ██╗██████╗ ███████╗██████╗
@@ -288,9 +259,6 @@ def show_banner():
     """
     print(banner)
 
-# ---------------------------
-# Main
-# ---------------------------
 if __name__ == "__main__":
     show_banner()
     secure_messaging_tool = SecureMessagingTool()
@@ -298,14 +266,11 @@ if __name__ == "__main__":
     root.title("Secure Messaging Tool - Professional Edition")
     root.geometry("1000x700")
     root.configure(bg="#081129")
-    # Slight transparency to feel modern
     try:
         root.attributes("-alpha", 0.98)
     except Exception:
         pass
-    # Notebook
     style = ttk.Style()
-    # Use default theme but tweak colors
     style.theme_use("clam")
     style.configure("TNotebook", background="#081129", borderwidth=0)
     style.configure("TNotebook.Tab", background="#0b1220", foreground="#c7d2fe", padding=(12, 8))
