@@ -155,8 +155,8 @@ class EncryptionWindow:
         output_path = filedialog.asksaveasfilename(defaultextension=".enc", filetypes=[("Encrypted Files", "*.enc")])
         if output_path:
             try:
-                with open(output_path, "wb") as f:  # Binary mode
-                    f.write(encrypted_message.encode('utf-8'))
+                with open(output_path, "w") as f:
+                    f.write(encrypted_message)
                 self.status_var.set(f"Saved: {os.path.basename(output_path)}")
                 show_toast(self.root, "Encrypted file saved", duration=2000)
             except Exception as e:
@@ -222,8 +222,8 @@ class DecryptionWindow:
         file_path = filedialog.askopenfilename(filetypes=[("Encrypted Files", "*.enc")])
         if file_path:
             try:
-                with open(file_path, "rb") as f:  # Binary mode
-                    encrypted_message = f.read().decode('utf-8', errors='ignore')
+                with open(file_path, "r") as f:
+                    encrypted_message = f.read()
                 self.encrypted_text.delete("1.0", tk.END)
                 self.encrypted_text.insert(tk.END, encrypted_message)
                 show_toast(self.root, "Loaded encrypted file", duration=1600)
@@ -237,7 +237,7 @@ class DecryptionWindow:
             if output_path:
                 try:
                     self.secure_messaging_tool.decrypt_file(file_path, output_path)
-                    show_toast(self.root, "File decrypted", duration=2000)
+                    show_toast(self.root, f"File decrypted and saved to {output_path}", duration=2000)
                 except Exception as e:
                     messagebox.showerror("Error", f"Failed to decrypt file: {e}")
 
