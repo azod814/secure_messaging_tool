@@ -3,6 +3,12 @@ from tkinter import messagebox, ttk, filedialog
 from cryptography.fernet import Fernet, InvalidToken
 import os
 import pyperclip
+import sys
+import ctypes
+
+# Hide terminal window (Windows)
+if sys.platform == "win32":
+    ctypes.windll.user32.ShowWindow(ctypes.windll.kernel32.GetConsoleWindow(), 0)
 
 class SecureMessagingTool:
     def __init__(self):
@@ -19,7 +25,7 @@ class SecureMessagingTool:
             self.cipher_suite = Fernet(self.key)
         except Exception as e:
             messagebox.showerror("Error", f"Failed to load key: {e}")
-            exit()
+            sys.exit(1)
 
     def encrypt_message(self, message):
         encrypted_message = self.cipher_suite.encrypt(message.encode())
@@ -51,24 +57,59 @@ class EncryptionWindow:
         self.parent = parent
         self.secure_messaging_tool = secure_messaging_tool
 
+        # Styling
+        parent.configure(bg="#2c3e50")
+        style = ttk.Style()
+        style.configure("TNotebook", background="#34495e", foreground="white")
+        style.configure("TFrame", background="#2c3e50")
+
         # Text Encryption
-        self.message_label = tk.Label(parent, text="Enter Your Message:", font=("Arial", 14))
-        self.message_label.pack(pady=5)
-        self.message_entry = tk.Entry(parent, font=("Arial", 14), width=50)
+        self.message_label = tk.Label(
+            parent, text="Enter Your Message:", font=("Helvetica", 12, "bold"),
+            bg="#2c3e50", fg="white"
+        )
+        self.message_label.pack(pady=10)
+        self.message_entry = tk.Entry(
+            parent, font=("Helvetica", 12), width=50, bg="#34495e", fg="white",
+            insertbackground="white"
+        )
         self.message_entry.pack(pady=5)
-        self.encrypt_button = tk.Button(parent, text="Encrypt Text", font=("Arial", 14), command=self.encrypt_message)
+        self.encrypt_button = tk.Button(
+            parent, text="Encrypt Text", font=("Helvetica", 12, "bold"),
+            bg="#3498db", fg="white", command=self.encrypt_message
+        )
         self.encrypt_button.pack(pady=5)
-        self.encrypted_message_label = tk.Label(parent, text="Encrypted Message:", font=("Arial", 14))
+        self.encrypted_message_label = tk.Label(
+            parent, text="Encrypted Message:", font=("Helvetica", 12, "bold"),
+            bg="#2c3e50", fg="white"
+        )
         self.encrypted_message_label.pack(pady=5)
-        self.encrypted_message_entry = tk.Entry(parent, font=("Arial", 14), width=50)
+        self.encrypted_message_entry = tk.Entry(
+            parent, font=("Helvetica", 12), width=50, bg="#34495e", fg="white",
+            insertbackground="white"
+        )
         self.encrypted_message_entry.pack(pady=5)
-        self.copy_button = tk.Button(parent, text="Copy Text", font=("Arial", 14), command=self.copy_code)
+        self.copy_button = tk.Button(
+            parent, text="Copy Text", font=("Helvetica", 12, "bold"),
+            bg="#2ecc71", fg="white", command=self.copy_code
+        )
         self.copy_button.pack(pady=5)
+        self.save_button = tk.Button(
+            parent, text="Save Encrypted Message", font=("Helvetica", 12, "bold"),
+            bg="#e74c3c", fg="white", command=self.save_encrypted_message
+        )
+        self.save_button.pack(pady=5)
 
         # File Encryption
-        self.file_label = tk.Label(parent, text="Select File to Encrypt:", font=("Arial", 14))
-        self.file_label.pack(pady=5)
-        self.select_file_button = tk.Button(parent, text="Select File", font=("Arial", 14), command=self.select_file_to_encrypt)
+        self.file_label = tk.Label(
+            parent, text="Select File to Encrypt:", font=("Helvetica", 12, "bold"),
+            bg="#2c3e50", fg="white"
+        )
+        self.file_label.pack(pady=10)
+        self.select_file_button = tk.Button(
+            parent, text="Select File", font=("Helvetica", 12, "bold"),
+            bg="#9b59b6", fg="white", command=self.select_file_to_encrypt
+        )
         self.select_file_button.pack(pady=5)
 
     def encrypt_message(self):
@@ -88,10 +129,24 @@ class EncryptionWindow:
         pyperclip.copy(encrypted_message)
         messagebox.showinfo("Success", "Encrypted message copied!")
 
+    def save_encrypted_message(self):
+        encrypted_message = self.encrypted_message_entry.get()
+        if not encrypted_message:
+            messagebox.showerror("Error", "No encrypted message to save!")
+            return
+        output_path = filedialog.asksaveasfilename(
+            defaultextension=".enc",
+            filetypes=[("Encrypted Files", "*.enc"), ("Text Files", "*.txt")]
+        )
+        if output_path:
+            with open(output_path, "w") as f:
+                f.write(encrypted_message)
+            messagebox.showinfo("Success", f"Encrypted message saved to {output_path}!")
+
     def select_file_to_encrypt(self):
         file_path = filedialog.askopenfilename()
         if file_path:
-            output_path = filedialog.asksaveasfilename(defaultextension=".enc", filetypes=[("Encrypted Files", "*.enc")])
+            output_path = filedialog.asksaveasfilename(defaultextension=".enc")
             if output_path:
                 try:
                     self.secure_messaging_tool.encrypt_file(file_path, output_path)
@@ -104,22 +159,51 @@ class DecryptionWindow:
         self.parent = parent
         self.secure_messaging_tool = secure_messaging_tool
 
+        # Styling
+        parent.configure(bg="#2c3e50")
+
         # Text Decryption
-        self.encrypted_message_label = tk.Label(parent, text="Enter Encrypted Message:", font=("Arial", 14))
-        self.encrypted_message_label.pack(pady=5)
-        self.encrypted_message_entry = tk.Entry(parent, font=("Arial", 14), width=50)
+        self.encrypted_message_label = tk.Label(
+            parent, text="Enter Encrypted Message:", font=("Helvetica", 12, "bold"),
+            bg="#2c3e50", fg="white"
+        )
+        self.encrypted_message_label.pack(pady=10)
+        self.encrypted_message_entry = tk.Entry(
+            parent, font=("Helvetica", 12), width=50, bg="#34495e", fg="white",
+            insertbackground="white"
+        )
         self.encrypted_message_entry.pack(pady=5)
-        self.decrypt_button = tk.Button(parent, text="Decrypt Text", font=("Arial", 14), command=self.decrypt_message)
+        self.decrypt_button = tk.Button(
+            parent, text="Decrypt Text", font=("Helvetica", 12, "bold"),
+            bg="#3498db", fg="white", command=self.decrypt_message
+        )
         self.decrypt_button.pack(pady=5)
-        self.decrypted_message_label = tk.Label(parent, text="Decrypted Message:", font=("Arial", 14))
+        self.decrypted_message_label = tk.Label(
+            parent, text="Decrypted Message:", font=("Helvetica", 12, "bold"),
+            bg="#2c3e50", fg="white"
+        )
         self.decrypted_message_label.pack(pady=5)
-        self.decrypted_message_entry = tk.Entry(parent, font=("Arial", 14), width=50)
+        self.decrypted_message_entry = tk.Entry(
+            parent, font=("Helvetica", 12), width=50, bg="#34495e", fg="white",
+            insertbackground="white"
+        )
         self.decrypted_message_entry.pack(pady=5)
+        self.load_button = tk.Button(
+            parent, text="Load Encrypted Message", font=("Helvetica", 12, "bold"),
+            bg="#e74c3c", fg="white", command=self.load_encrypted_message
+        )
+        self.load_button.pack(pady=5)
 
         # File Decryption
-        self.file_label = tk.Label(parent, text="Select File to Decrypt:", font=("Arial", 14))
-        self.file_label.pack(pady=5)
-        self.select_file_button = tk.Button(parent, text="Select File", font=("Arial", 14), command=self.select_file_to_decrypt)
+        self.file_label = tk.Label(
+            parent, text="Select File to Decrypt:", font=("Helvetica", 12, "bold"),
+            bg="#2c3e50", fg="white"
+        )
+        self.file_label.pack(pady=10)
+        self.select_file_button = tk.Button(
+            parent, text="Select File", font=("Helvetica", 12, "bold"),
+            bg="#9b59b6", fg="white", command=self.select_file_to_decrypt
+        )
         self.select_file_button.pack(pady=5)
 
     def decrypt_message(self):
@@ -134,6 +218,16 @@ class DecryptionWindow:
         except ValueError as e:
             messagebox.showerror("Error", str(e))
 
+    def load_encrypted_message(self):
+        file_path = filedialog.askopenfilename(
+            filetypes=[("Encrypted Files", "*.enc"), ("Text Files", "*.txt")]
+        )
+        if file_path:
+            with open(file_path, "r") as f:
+                encrypted_message = f.read()
+            self.encrypted_message_entry.delete(0, tk.END)
+            self.encrypted_message_entry.insert(0, encrypted_message)
+
     def select_file_to_decrypt(self):
         file_path = filedialog.askopenfilename(filetypes=[("Encrypted Files", "*.enc")])
         if file_path:
@@ -145,20 +239,40 @@ class DecryptionWindow:
                 except Exception as e:
                     messagebox.showerror("Error", f"Failed to decrypt file: {e}")
 
+def show_banner():
+    banner = """
+                ███████╗███████╗ ██████╗██╗   ██╗██████╗ ███████╗██████╗
+                ██╔════╝██╔════╝██╔════╝██║   ██║██╔══██╗██╔════╝██╔══██╗
+                ███████╗█████╗  ██║     ██║   ██║██████╔╝█████╗  ██║  ██║
+                ╚════██║██╔══╝  ██║     ██║   ██║██╔══██╗██╔══╝  ██║  ██║
+                ███████║███████╗╚██████╗╚██████╔╝██║  ██║███████╗██████╔╝
+                ╚══════╝╚══════╝ ╚═════╝ ╚═════╝ ╚═╝  ╚═╝╚══════╝╚═════╝
+
+                            ████████╗ ██████╗  ██████╗ ██╗
+                            ╚══██╔══╝██╔═══██╗██╔═══██╗██║
+                               ██║   ██║   ██║██║   ██║██║
+                               ██║   ██║   ██║██║   ██║██║
+                               ██║   ╚██████╔╝╚██████╔╝███████╗
+                               ╚═╝    ╚═════╝  ╚═════╝ ╚══════╝
+    """
+    print(banner)
+
 if __name__ == "__main__":
+    show_banner()
     secure_messaging_tool = SecureMessagingTool()
     root = tk.Tk()
-    root.title("Secure Messaging Tool")
+    root.title("Secure Messaging Tool - Professional Edition")
     root.geometry("800x600")
-    root.configure(bg="#F0F0F0")
+    root.configure(bg="#2c3e50")
+    root.attributes("-alpha", 0.95)  # Transparent background
 
     tab_control = ttk.Notebook(root)
     tab_control.pack(expand=1, fill="both")
 
-    encryption_tab = tk.Frame(tab_control)
+    encryption_tab = tk.Frame(tab_control, bg="#2c3e50")
     tab_control.add(encryption_tab, text="Encryption")
 
-    decryption_tab = tk.Frame(tab_control)
+    decryption_tab = tk.Frame(tab_control, bg="#2c3e50")
     tab_control.add(decryption_tab, text="Decryption")
 
     encryption_window = EncryptionWindow(encryption_tab, secure_messaging_tool)
