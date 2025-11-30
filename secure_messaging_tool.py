@@ -238,12 +238,7 @@ class DecryptionWindow:
     def select_file_to_decrypt(self):
         file_path = filedialog.askopenfilename(filetypes=[("Encrypted Files", "*.enc")])
         if file_path:
-            # Ask for output path with the same extension as the original file
-            original_extension = os.path.splitext(file_path)[1][1:]  # Extract extension without the dot
-            if not original_extension:
-                output_path = filedialog.asksaveasfilename(defaultextension="")
-            else:
-                output_path = filedialog.asksaveasfilename(defaultextension=f".{original_extension}", filetypes=[(f"{original_extension.upper()} files", f"*.{original_extension}"), ("All files", "*.*")])
+            output_path = filedialog.asksaveasfilename()
             if output_path:
                 try:
                     self.secure_messaging_tool.decrypt_file(file_path, output_path)
