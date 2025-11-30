@@ -22,6 +22,12 @@ class SecureMessagingTool:
                 self.key = Fernet.generate_key()
                 with open(self.key_file, "wb") as f:
                     f.write(self.key)
+                # try to set restrictive permissions on unix
+                try:
+                    os.chmod(self.key_file, 0o600)
+                except Exception:
+                    pass
+                # showinfo will work because root is created before initializing this class
                 messagebox.showinfo("Info", f"New key generated! Share {self.key_file} with your friend!")
             else:
                 with open(self.key_file, "rb") as f:
@@ -31,8 +37,10 @@ class SecureMessagingTool:
             messagebox.showerror("Error", f"Failed to load key: {e}")
             sys.exit(1)
 
+    # KEEP message text flow unchanged (you asked not to change text message behavior)
     def encrypt_message(self, message: str) -> str:
         encrypted_message = self.cipher_suite.encrypt(message.encode())
+        # you're currently base64-encoding again in your original flow; keep it for compatibility
         return base64.b64encode(encrypted_message).decode()
 
     def decrypt_message(self, encrypted_message: str) -> str:
@@ -46,6 +54,7 @@ class SecureMessagingTool:
             raise ValueError(f"Decryption failed: {e}")
 
     def encrypt_file(self, input_file_path: str, output_file_path: str):
+        # read binary, encrypt bytes, write binary
         with open(input_file_path, "rb") as f:
             file_data = f.read()
         encrypted_data = self.cipher_suite.encrypt(file_data)
@@ -53,9 +62,14 @@ class SecureMessagingTool:
             f.write(encrypted_data)
 
     def decrypt_file(self, input_file_path: str, output_file_path: str):
+        # read encrypted bytes, decrypt, write original bytes
         with open(input_file_path, "rb") as f:
             encrypted_data = f.read()
-        decrypted_data = self.cipher_suite.decrypt(encrypted_data)
+        try:
+            decrypted_data = self.cipher_suite.decrypt(encrypted_data)
+        except InvalidToken:
+            # raise so caller (UI) can show a friendly error
+            raise InvalidToken
         with open(output_file_path, "wb") as f:
             f.write(decrypted_data)
 
@@ -149,7 +163,17 @@ class EncryptionWindow:
             show_toast(self.root, "Encrypted message copied to clipboard", duration=2000)
             self.status_var.set("Copied to clipboard")
         except Exception as e:
-            messagebox.showerror("Error", f"Failed to copy: {e}")
+            # fallback: show message in a small popup for manual copy
+            try:
+                popup = tk.Toplevel(self.root)
+                popup.title("Copy Encrypted")
+                tk.Label(popup, text="Clipboard unavailable. Copy from box below:", padx=8, pady=8).pack()
+                text = tk.Text(popup, height=6, width=60)
+                text.pack(padx=8, pady=(0,8))
+                text.insert(tk.END, encrypted_message)
+                text.config(state=tk.NORMAL)
+            except Exception:
+                messagebox.showerror("Error", f"Failed to copy: {e}")
 
     def save_encrypted_message(self):
         encrypted_message = self.encrypted_text.get("1.0", tk.END).strip()
@@ -228,15 +252,39 @@ class DecryptionWindow:
 
     def load_encrypted_message(self):
         file_path = filedialog.askopenfilename(filetypes=[("Encrypted Files", "*.enc")])
-        if file_path:
+        if not file_path:
+            return
+
+        try:
+            # Read the .enc file in binary mode
+            with open(file_path, "rb") as f:
+                data = f.read()
+
+            # Try to decode as UTF-8 text first (this covers encrypted text tokens)
             try:
-                with open(file_path, "r") as f:
-                    encrypted_message = f.read().strip()
+                text = data.decode('utf-8').strip()
+                # Very likely it's the base64/text token used for messages
                 self.encrypted_text.delete("1.0", tk.END)
-                self.encrypted_text.insert(tk.END, encrypted_message)
-                show_toast(self.root, "Loaded encrypted file", duration=1600)
-            except Exception as e:
-                messagebox.showerror("Error", f"Failed to load file: {e}")
+                self.encrypted_text.insert(tk.END, text)
+                show_toast(self.root, "Loaded encrypted file (text)", duration=1600)
+            except UnicodeDecodeError:
+                # It's binary — likely an encrypted file (image/document)
+                # Ask user where to save the decrypted original
+                out_path = filedialog.asksaveasfilename(title="Save decrypted file as...", defaultextension="", filetypes=[("All files", "*.*")])
+                if not out_path:
+                    # user cancelled save dialog
+                    return
+                try:
+                    # Use the existing decrypt_file which expects binary .enc input
+                    self.secure_messaging_tool.decrypt_file(file_path, out_path)
+                    show_toast(self.root, f"File decrypted and saved to:\n{out_path}", duration=2200)
+                except InvalidToken:
+                    messagebox.showerror("Error", "Decryption failed: Invalid key or corrupted file (InvalidToken).")
+                except Exception as e:
+                    messagebox.showerror("Error", f"Failed to decrypt file: {e}")
+
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to load file: {e}")
 
     def select_file_to_decrypt(self):
         file_path = filedialog.askopenfilename(filetypes=[("Encrypted Files", "*.enc")])
@@ -246,6 +294,8 @@ class DecryptionWindow:
                 try:
                     self.secure_messaging_tool.decrypt_file(file_path, output_path)
                     show_toast(self.root, f"File decrypted and saved to {output_path}", duration=2000)
+                except InvalidToken:
+                    messagebox.showerror("Error", "Decryption failed: Invalid key or corrupted file (InvalidToken).")
                 except Exception as e:
                     messagebox.showerror("Error", f"Failed to decrypt file: {e}")
 
@@ -269,8 +319,15 @@ def show_banner():
 
 if __name__ == "__main__":
     show_banner()
-    secure_messaging_tool = SecureMessagingTool()
+
+    # Create root first so messagebox works
     root = tk.Tk()
+    root.withdraw()  # hide window while key init may show messagebox
+
+    # Initialize secure tool (messagebox inside will now work)
+    secure_messaging_tool = SecureMessagingTool()
+
+    # Now continue building UI
     root.title("Secure Messaging Tool - Professional Edition")
     root.geometry("1000x700")
     root.configure(bg="#081129")
@@ -278,8 +335,15 @@ if __name__ == "__main__":
         root.attributes("-alpha", 0.98)
     except Exception:
         pass
+
+    # If a key-info messagebox was shown, main window will reappear now:
+    root.deiconify()
+
     style = ttk.Style()
-    style.theme_use("clam")
+    try:
+        style.theme_use("clam")
+    except Exception:
+        pass
     style.configure("TNotebook", background="#081129", borderwidth=0)
     style.configure("TNotebook.Tab", background="#0b1220", foreground="#c7d2fe", padding=(12, 8))
     tab_control = ttk.Notebook(root)
