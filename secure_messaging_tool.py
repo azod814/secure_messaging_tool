@@ -5,6 +5,7 @@ import os
 import pyperclip
 import sys
 import ctypes
+import base64
 
 # Hide terminal window (Windows)
 if sys.platform == "win32":
@@ -32,14 +33,17 @@ class SecureMessagingTool:
 
     def encrypt_message(self, message: str) -> str:
         encrypted_message = self.cipher_suite.encrypt(message.encode())
-        return encrypted_message.decode()
+        return base64.b64encode(encrypted_message).decode()
 
     def decrypt_message(self, encrypted_message: str) -> str:
         try:
-            decrypted_message = self.cipher_suite.decrypt(encrypted_message.encode())
+            encrypted_message = base64.b64decode(encrypted_message.encode())
+            decrypted_message = self.cipher_suite.decrypt(encrypted_message)
             return decrypted_message.decode()
         except InvalidToken:
             raise ValueError("Invalid encrypted message or wrong key!")
+        except Exception as e:
+            raise ValueError(f"Decryption failed: {e}")
 
     def encrypt_file(self, input_file_path: str, output_file_path: str):
         with open(input_file_path, "rb") as f:
@@ -222,8 +226,9 @@ class DecryptionWindow:
         file_path = filedialog.askopenfilename(filetypes=[("Encrypted Files", "*.enc")])
         if file_path:
             try:
-                with open(file_path, "r") as f:
-                    encrypted_message = f.read()
+                with open(file_path, "rb") as f:
+                    encrypted_data = f.read()
+                encrypted_message = base64.b64encode(encrypted_data).decode()
                 self.encrypted_text.delete("1.0", tk.END)
                 self.encrypted_text.insert(tk.END, encrypted_message)
                 show_toast(self.root, "Loaded encrypted file", duration=1600)
@@ -233,7 +238,12 @@ class DecryptionWindow:
     def select_file_to_decrypt(self):
         file_path = filedialog.askopenfilename(filetypes=[("Encrypted Files", "*.enc")])
         if file_path:
-            output_path = filedialog.asksaveasfilename()
+            # Ask for output path with the same extension as the original file
+            original_extension = os.path.splitext(file_path)[1][1:]  # Extract extension without the dot
+            if not original_extension:
+                output_path = filedialog.asksaveasfilename(defaultextension="")
+            else:
+                output_path = filedialog.asksaveasfilename(defaultextension=f".{original_extension}", filetypes=[(f"{original_extension.upper()} files", f"*.{original_extension}"), ("All files", "*.*")])
             if output_path:
                 try:
                     self.secure_messaging_tool.decrypt_file(file_path, output_path)
