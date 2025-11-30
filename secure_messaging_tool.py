@@ -206,6 +206,10 @@ class DecryptionWindow:
         out_label.pack(anchor="w", pady=(12, 0))
         self.decrypted_text = tk.Text(container, height=8, bg="#081129", fg="#e6f0ff", insertbackground="#e6f0ff", wrap=tk.WORD, relief=tk.FLAT)
         self.decrypted_text.pack(fill=tk.BOTH, expand=True, pady=(6, 8))
+        file_frame = tk.Frame(container, bg="#071027")
+        file_frame.pack(fill=tk.X, pady=(6, 4))
+        sel_file_btn = tk.Button(file_frame, text="Select File to Decrypt", bg="#7c3aed", fg="white", font=("Segoe UI", 10, "bold"), command=self.select_file_to_decrypt, bd=0, padx=10, pady=6)
+        sel_file_btn.pack(side=tk.LEFT)
 
     def decrypt_message(self):
         encrypted_message = self.encrypted_text.get("1.0", tk.END).strip()
@@ -226,9 +230,8 @@ class DecryptionWindow:
         file_path = filedialog.askopenfilename(filetypes=[("Encrypted Files", "*.enc")])
         if file_path:
             try:
-                with open(file_path, "rb") as f:
-                    encrypted_data = f.read()
-                encrypted_message = base64.b64encode(encrypted_data).decode()
+                with open(file_path, "r") as f:
+                    encrypted_message = f.read().strip()
                 self.encrypted_text.delete("1.0", tk.END)
                 self.encrypted_text.insert(tk.END, encrypted_message)
                 show_toast(self.root, "Loaded encrypted file", duration=1600)
