@@ -17,7 +17,7 @@ if sys.platform == "win32":
         pass
 
 class SecureMessagingTool:
-    def _init_(self, key_file="encryption_key.txt"):
+    def __init__(self, key_file="encryption_key.txt"):
         self.key_file = key_file
         try:
             if not os.path.exists(self.key_file):
@@ -110,7 +110,7 @@ def add_hover(btn, normal_bg, hover_bg):
     btn.bind("<Leave>", on_leave)
 
 class EncryptionWindow:
-    def _init_(self, parent, secure_messaging_tool, root, title_label):
+    def __init__(self, parent, secure_messaging_tool, root, title_label):
         self.parent = parent
         self.secure_messaging_tool = secure_messaging_tool
         self.root = root
@@ -229,7 +229,7 @@ class EncryptionWindow:
                     messagebox.showerror("Error", f"Failed to encrypt file: {e}")
 
 class DecryptionWindow:
-    def _init_(self, parent, secure_messaging_tool, root, title_label):
+    def __init__(self, parent, secure_messaging_tool, root, title_label):
         self.parent = parent
         self.secure_messaging_tool = secure_messaging_tool
         self.root = root
@@ -311,7 +311,7 @@ class DecryptionWindow:
                 self.encrypted_text.insert(tk.END, text)
                 show_toast(self.root, "Loaded encrypted file (text)")
             except UnicodeDecodeError:
-                out_path = filedialog.asksaveasfilename(title="Save decrypted file as...", defaultextension="", filetypes=[("All files", ".")])
+                out_path = filedialog.asksaveasfilename(title="Save decrypted file as...", defaultextension="", filetypes=[("All files", "*.*")])
                 if not out_path:
                     return
                 try:
@@ -327,7 +327,7 @@ class DecryptionWindow:
     def select_file_to_decrypt(self):
         file_path = filedialog.askopenfilename(filetypes=[("Encrypted Files", "*.enc")])
         if file_path:
-            output_path = filedialog.asksaveasfilename(defaultextension="", filetypes=[("All files", ".")])
+            output_path = filedialog.asksaveasfilename(defaultextension="", filetypes=[("All files", "*.*")])
             if output_path:
                 try:
                     self.secure_messaging_tool.decrypt_file(file_path, output_path)
@@ -373,7 +373,7 @@ def show_banner():
 """
     print(banner)
 
-if _name_ == "_main_":
+if __name__ == "__main__":
     show_banner()
 
     root = tk.Tk()
