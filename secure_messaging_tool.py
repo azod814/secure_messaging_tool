@@ -6,6 +6,8 @@ import pyperclip
 import sys
 import ctypes
 import base64
+import threading
+import time
 
 # Hide terminal window (Windows)
 if sys.platform == "win32":
@@ -15,19 +17,17 @@ if sys.platform == "win32":
         pass
 
 class SecureMessagingTool:
-    def __init__(self, key_file="encryption_key.txt"):
+    def _init_(self, key_file="encryption_key.txt"):
         self.key_file = key_file
         try:
             if not os.path.exists(self.key_file):
                 self.key = Fernet.generate_key()
                 with open(self.key_file, "wb") as f:
                     f.write(self.key)
-                # try to set restrictive permissions on unix
                 try:
                     os.chmod(self.key_file, 0o600)
                 except Exception:
                     pass
-                # showinfo will work because root is created before initializing this class
                 messagebox.showinfo("Info", f"New key generated! Share {self.key_file} with your friend!")
             else:
                 with open(self.key_file, "rb") as f:
@@ -37,10 +37,9 @@ class SecureMessagingTool:
             messagebox.showerror("Error", f"Failed to load key: {e}")
             sys.exit(1)
 
-    # KEEP message text flow unchanged (you asked not to change text message behavior)
+    # KEEP message text flow unchanged
     def encrypt_message(self, message: str) -> str:
         encrypted_message = self.cipher_suite.encrypt(message.encode())
-        # you're currently base64-encoding again in your original flow; keep it for compatibility
         return base64.b64encode(encrypted_message).decode()
 
     def decrypt_message(self, encrypted_message: str) -> str:
@@ -54,7 +53,6 @@ class SecureMessagingTool:
             raise ValueError(f"Decryption failed: {e}")
 
     def encrypt_file(self, input_file_path: str, output_file_path: str):
-        # read binary, encrypt bytes, write binary
         with open(input_file_path, "rb") as f:
             file_data = f.read()
         encrypted_data = self.cipher_suite.encrypt(file_data)
@@ -62,18 +60,17 @@ class SecureMessagingTool:
             f.write(encrypted_data)
 
     def decrypt_file(self, input_file_path: str, output_file_path: str):
-        # read encrypted bytes, decrypt, write original bytes
         with open(input_file_path, "rb") as f:
             encrypted_data = f.read()
         try:
             decrypted_data = self.cipher_suite.decrypt(encrypted_data)
         except InvalidToken:
-            # raise so caller (UI) can show a friendly error
             raise InvalidToken
         with open(output_file_path, "wb") as f:
             f.write(decrypted_data)
 
-def show_toast(root, message: str, duration=2000):
+def show_toast(root, message: str, duration=1500):
+    # simple centered toast at top of app
     toast = tk.Toplevel(root)
     toast.overrideredirect(True)
     toast.attributes("-topmost", True)
@@ -91,54 +88,91 @@ def show_toast(root, message: str, duration=2000):
     rw = root.winfo_width()
     rh = root.winfo_height()
     tw = toast.winfo_reqwidth()
-    th = toast.winfo_reqheight()
+    # place near top center
     x = rx + (rw - tw) // 2
-    y = ry + int(rh * 0.08)
+    y = ry + int(rh * 0.06)
     toast.geometry(f"+{x}+{y}")
     toast.after(duration, toast.destroy)
 
+# small helper to add hover behaviour to tk.Button
+def add_hover(btn, normal_bg, hover_bg):
+    def on_enter(e):
+        try:
+            btn.config(bg=hover_bg)
+        except Exception:
+            pass
+    def on_leave(e):
+        try:
+            btn.config(bg=normal_bg)
+        except Exception:
+            pass
+    btn.bind("<Enter>", on_enter)
+    btn.bind("<Leave>", on_leave)
+
 class EncryptionWindow:
-    def __init__(self, parent, secure_messaging_tool, root):
+    def _init_(self, parent, secure_messaging_tool, root, title_label):
         self.parent = parent
         self.secure_messaging_tool = secure_messaging_tool
         self.root = root
+        self.title_label = title_label
         self.build_ui()
 
     def build_ui(self):
+        # Use grid for responsiveness inside paned window
         self.parent.configure(bg="#0b1220")
-        title = tk.Label(self.parent, text="Secure Messaging — Encryption", font=("Segoe UI", 16, "bold"), bg="#0b1220", fg="#e6f0ff")
-        title.pack(pady=(14, 6))
-        container = tk.Frame(self.parent, bg="#0b1220")
-        container.pack(fill=tk.BOTH, expand=True, padx=16, pady=8)
-        left = tk.Frame(container, bg="#0b1220")
-        left.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 8))
+        self.parent.grid_rowconfigure(0, weight=1)
+        self.parent.grid_columnconfigure(0, weight=1)
+        # Use a PanedWindow horizontally inside the tab for resizable panes
+        paned = tk.PanedWindow(self.parent, orient=tk.HORIZONTAL, sashrelief=tk.RAISED, bg="#0b1220", sashwidth=6)
+        paned.grid(sticky="nsew", padx=12, pady=10)
+
+        left = tk.Frame(paned, bg="#0b1220")
+        right = tk.Frame(paned, bg="#071027")
+        paned.add(left, minsize=260)
+        paned.add(right, minsize=260)
+
+        # Left side (input + buttons)
+        left.grid_rowconfigure(1, weight=1)
+        left.grid_columnconfigure(0, weight=1)
         msg_label = tk.Label(left, text="Enter message:", bg="#0b1220", fg="#dbeafe", font=("Segoe UI", 11, "bold"))
-        msg_label.pack(anchor="w")
+        msg_label.grid(row=0, column=0, sticky="w", padx=6, pady=(6,4))
+
         self.message_text = tk.Text(left, height=8, bg="#081129", fg="#e6f0ff", insertbackground="#e6f0ff", wrap=tk.WORD, relief=tk.FLAT)
-        self.message_text.pack(fill=tk.BOTH, expand=True, pady=(6, 8))
+        self.message_text.grid(row=1, column=0, sticky="nsew", padx=6, pady=(0,8))
+
         btn_frame = tk.Frame(left, bg="#0b1220")
-        btn_frame.pack(fill=tk.X)
+        btn_frame.grid(row=2, column=0, sticky="ew", padx=6, pady=(0,8))
+        btn_frame.grid_columnconfigure((0,1,2), weight=1)
+
         encrypt_btn = tk.Button(btn_frame, text="Encrypt", bg="#2563eb", fg="white", font=("Segoe UI", 10, "bold"), command=self.encrypt_message, bd=0, padx=12, pady=6)
-        encrypt_btn.pack(side=tk.LEFT, padx=(0, 8))
+        encrypt_btn.grid(row=0, column=0, sticky="w", padx=(0,8))
+        add_hover(encrypt_btn, "#2563eb", "#1d4ed8")
+
         copy_btn = tk.Button(btn_frame, text="Copy Encrypted", bg="#10b981", fg="white", font=("Segoe UI", 10, "bold"), command=self.copy_code, bd=0, padx=12, pady=6)
-        copy_btn.pack(side=tk.LEFT, padx=(0, 8))
+        copy_btn.grid(row=0, column=1, sticky="w", padx=(0,8))
+        add_hover(copy_btn, "#10b981", "#059669")
+
         save_btn = tk.Button(btn_frame, text="Save .enc", bg="#ef4444", fg="white", font=("Segoe UI", 10, "bold"), command=self.save_encrypted_message, bd=0, padx=12, pady=6)
-        save_btn.pack(side=tk.LEFT)
-        right = tk.Frame(container, bg="#071027")
-        right.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        save_btn.grid(row=0, column=2, sticky="w")
+        add_hover(save_btn, "#ef4444", "#dc2626")
+
+        # Right side (encrypted output + file ops)
+        right.grid_rowconfigure(1, weight=1)
+        right.grid_columnconfigure(0, weight=1)
         enc_label = tk.Label(right, text="Encrypted output:", bg="#071027", fg="#dbeafe", font=("Segoe UI", 11, "bold"))
-        enc_label.pack(anchor="w")
+        enc_label.grid(row=0, column=0, sticky="w", padx=6, pady=(6,4))
+
         self.encrypted_text = tk.Text(right, height=14, bg="#020617", fg="#c7d2fe", insertbackground="#c7d2fe", wrap=tk.WORD, relief=tk.FLAT)
-        self.encrypted_text.pack(fill=tk.BOTH, expand=True, pady=(6, 8))
+        self.encrypted_text.grid(row=1, column=0, sticky="nsew", padx=6, pady=(0,8))
+
         file_label = tk.Label(right, text="File operations:", bg="#071027", fg="#dbeafe", font=("Segoe UI", 11, "bold"))
-        file_label.pack(anchor="w", pady=(6, 4))
+        file_label.grid(row=2, column=0, sticky="w", padx=6, pady=(6,4))
+
         file_frame = tk.Frame(right, bg="#071027")
-        file_frame.pack(fill=tk.X)
+        file_frame.grid(row=3, column=0, sticky="ew", padx=6, pady=(0,10))
         sel_file_btn = tk.Button(file_frame, text="Select File to Encrypt", bg="#7c3aed", fg="white", font=("Segoe UI", 10, "bold"), command=self.select_file_to_encrypt, bd=0, padx=10, pady=6)
         sel_file_btn.pack(side=tk.LEFT)
-        self.status_var = tk.StringVar(value="Ready")
-        status = tk.Label(self.parent, textvariable=self.status_var, bg="#0b1220", fg="#9ca3af", anchor="w")
-        status.pack(fill=tk.X, side=tk.BOTTOM)
+        add_hover(sel_file_btn, "#7c3aed", "#6d28d9")
 
     def encrypt_message(self):
         message = self.message_text.get("1.0", tk.END).strip()
@@ -149,7 +183,6 @@ class EncryptionWindow:
             encrypted_message = self.secure_messaging_tool.encrypt_message(message)
             self.encrypted_text.delete("1.0", tk.END)
             self.encrypted_text.insert(tk.END, encrypted_message)
-            self.status_var.set("Text encrypted")
         except Exception as e:
             messagebox.showerror("Error", f"Failed to encrypt: {e}")
 
@@ -160,20 +193,15 @@ class EncryptionWindow:
             return
         try:
             pyperclip.copy(encrypted_message)
-            show_toast(self.root, "Encrypted message copied to clipboard", duration=2000)
-            self.status_var.set("Copied to clipboard")
-        except Exception as e:
-            # fallback: show message in a small popup for manual copy
-            try:
-                popup = tk.Toplevel(self.root)
-                popup.title("Copy Encrypted")
-                tk.Label(popup, text="Clipboard unavailable. Copy from box below:", padx=8, pady=8).pack()
-                text = tk.Text(popup, height=6, width=60)
-                text.pack(padx=8, pady=(0,8))
-                text.insert(tk.END, encrypted_message)
-                text.config(state=tk.NORMAL)
-            except Exception:
-                messagebox.showerror("Error", f"Failed to copy: {e}")
+            show_toast(self.root, "Encrypted message copied to clipboard")
+        except Exception:
+            # fallback: show a small window for manual copy
+            popup = tk.Toplevel(self.root)
+            popup.title("Copy Encrypted")
+            tk.Label(popup, text="Clipboard unavailable. Copy from box below:", padx=8, pady=8).pack()
+            text = tk.Text(popup, height=6, width=60)
+            text.pack(padx=8, pady=(0,8))
+            text.insert(tk.END, encrypted_message)
 
     def save_encrypted_message(self):
         encrypted_message = self.encrypted_text.get("1.0", tk.END).strip()
@@ -185,8 +213,7 @@ class EncryptionWindow:
             try:
                 with open(output_path, "w") as f:
                     f.write(encrypted_message)
-                self.status_var.set(f"Saved: {os.path.basename(output_path)}")
-                show_toast(self.root, "Encrypted file saved", duration=2000)
+                show_toast(self.root, "Encrypted file saved")
             except Exception as e:
                 messagebox.showerror("Error", f"Failed to save: {e}")
 
@@ -197,43 +224,64 @@ class EncryptionWindow:
             if output_path:
                 try:
                     self.secure_messaging_tool.encrypt_file(file_path, output_path)
-                    message = f"File encrypted: {os.path.basename(output_path)}"
-                    self.status_var.set(message)
-                    show_toast(self.root, "File encrypted successfully", duration=2000)
+                    show_toast(self.root, "File encrypted successfully")
                 except Exception as e:
                     messagebox.showerror("Error", f"Failed to encrypt file: {e}")
 
 class DecryptionWindow:
-    def __init__(self, parent, secure_messaging_tool, root):
+    def _init_(self, parent, secure_messaging_tool, root, title_label):
         self.parent = parent
         self.secure_messaging_tool = secure_messaging_tool
         self.root = root
+        self.title_label = title_label
         self.build_ui()
 
     def build_ui(self):
         self.parent.configure(bg="#071027")
-        title = tk.Label(self.parent, text="Secure Messaging — Decryption", font=("Segoe UI", 16, "bold"), bg="#071027", fg="#e6f0ff")
-        title.pack(pady=(14, 6))
-        container = tk.Frame(self.parent, bg="#071027")
-        container.pack(fill=tk.BOTH, expand=True, padx=16, pady=8)
-        enc_label = tk.Label(container, text="Paste encrypted text:", bg="#071027", fg="#dbeafe", font=("Segoe UI", 11, "bold"))
-        enc_label.pack(anchor="w")
-        self.encrypted_text = tk.Text(container, height=8, bg="#020617", fg="#c7d2fe", insertbackground="#c7d2fe", wrap=tk.WORD, relief=tk.FLAT)
-        self.encrypted_text.pack(fill=tk.BOTH, expand=True, pady=(6, 8))
-        btn_frame = tk.Frame(container, bg="#071027")
-        btn_frame.pack(fill=tk.X)
+        self.parent.grid_rowconfigure(0, weight=1)
+        self.parent.grid_columnconfigure(0, weight=1)
+
+        paned = tk.PanedWindow(self.parent, orient=tk.HORIZONTAL, sashrelief=tk.RAISED, bg="#071027", sashwidth=6)
+        paned.grid(sticky="nsew", padx=12, pady=10)
+
+        left = tk.Frame(paned, bg="#071027")
+        right = tk.Frame(paned, bg="#081129")
+        paned.add(left, minsize=260)
+        paned.add(right, minsize=260)
+
+        # Left: encrypted input & controls
+        left.grid_rowconfigure(1, weight=1)
+        left.grid_columnconfigure(0, weight=1)
+        enc_label = tk.Label(left, text="Paste encrypted text:", bg="#071027", fg="#dbeafe", font=("Segoe UI", 11, "bold"))
+        enc_label.grid(row=0, column=0, sticky="w", padx=6, pady=(6,4))
+
+        self.encrypted_text = tk.Text(left, height=8, bg="#020617", fg="#c7d2fe", insertbackground="#c7d2fe", wrap=tk.WORD, relief=tk.FLAT)
+        self.encrypted_text.grid(row=1, column=0, sticky="nsew", padx=6, pady=(0,8))
+
+        btn_frame = tk.Frame(left, bg="#071027")
+        btn_frame.grid(row=2, column=0, sticky="ew", padx=6, pady=(0,8))
         decrypt_btn = tk.Button(btn_frame, text="Decrypt", bg="#2563eb", fg="white", font=("Segoe UI", 10, "bold"), command=self.decrypt_message, bd=0, padx=12, pady=6)
-        decrypt_btn.pack(side=tk.LEFT, padx=(0, 8))
+        decrypt_btn.pack(side=tk.LEFT, padx=(0,8))
+        add_hover(decrypt_btn, "#2563eb", "#1d4ed8")
+
         load_btn = tk.Button(btn_frame, text="Load .enc", bg="#ef4444", fg="white", font=("Segoe UI", 10, "bold"), command=self.load_encrypted_message, bd=0, padx=12, pady=6)
         load_btn.pack(side=tk.LEFT)
-        out_label = tk.Label(container, text="Decrypted output:", bg="#071027", fg="#dbeafe", font=("Segoe UI", 11, "bold"))
-        out_label.pack(anchor="w", pady=(12, 0))
-        self.decrypted_text = tk.Text(container, height=8, bg="#081129", fg="#e6f0ff", insertbackground="#e6f0ff", wrap=tk.WORD, relief=tk.FLAT)
-        self.decrypted_text.pack(fill=tk.BOTH, expand=True, pady=(6, 8))
-        file_frame = tk.Frame(container, bg="#071027")
-        file_frame.pack(fill=tk.X, pady=(6, 4))
+        add_hover(load_btn, "#ef4444", "#dc2626")
+
+        # Right: decrypted output & file ops
+        right.grid_rowconfigure(1, weight=1)
+        right.grid_columnconfigure(0, weight=1)
+        out_label = tk.Label(right, text="Decrypted output:", bg="#081129", fg="#dbeafe", font=("Segoe UI", 11, "bold"))
+        out_label.grid(row=0, column=0, sticky="w", padx=6, pady=(6,4))
+
+        self.decrypted_text = tk.Text(right, height=8, bg="#081129", fg="#e6f0ff", insertbackground="#e6f0ff", wrap=tk.WORD, relief=tk.FLAT)
+        self.decrypted_text.grid(row=1, column=0, sticky="nsew", padx=6, pady=(0,8))
+
+        file_frame = tk.Frame(right, bg="#081129")
+        file_frame.grid(row=2, column=0, sticky="ew", padx=6, pady=(0,8))
         sel_file_btn = tk.Button(file_frame, text="Select File to Decrypt", bg="#7c3aed", fg="white", font=("Segoe UI", 10, "bold"), command=self.select_file_to_decrypt, bd=0, padx=10, pady=6)
         sel_file_btn.pack(side=tk.LEFT)
+        add_hover(sel_file_btn, "#7c3aed", "#6d28d9")
 
     def decrypt_message(self):
         encrypted_message = self.encrypted_text.get("1.0", tk.END).strip()
@@ -244,7 +292,7 @@ class DecryptionWindow:
             decrypted_message = self.secure_messaging_tool.decrypt_message(encrypted_message)
             self.decrypted_text.delete("1.0", tk.END)
             self.decrypted_text.insert(tk.END, decrypted_message)
-            show_toast(self.root, "Decryption successful", duration=2000)
+            show_toast(self.root, "Decryption successful")
         except ValueError as e:
             messagebox.showerror("Error", str(e))
         except Exception as e:
@@ -254,89 +302,94 @@ class DecryptionWindow:
         file_path = filedialog.askopenfilename(filetypes=[("Encrypted Files", "*.enc")])
         if not file_path:
             return
-
         try:
-            # Read the .enc file in binary mode
             with open(file_path, "rb") as f:
                 data = f.read()
-
-            # Try to decode as UTF-8 text first (this covers encrypted text tokens)
             try:
                 text = data.decode('utf-8').strip()
-                # Very likely it's the base64/text token used for messages
                 self.encrypted_text.delete("1.0", tk.END)
                 self.encrypted_text.insert(tk.END, text)
-                show_toast(self.root, "Loaded encrypted file (text)", duration=1600)
+                show_toast(self.root, "Loaded encrypted file (text)")
             except UnicodeDecodeError:
-                # It's binary — likely an encrypted file (image/document)
-                # Ask user where to save the decrypted original
-                out_path = filedialog.asksaveasfilename(title="Save decrypted file as...", defaultextension="", filetypes=[("All files", "*.*")])
+                out_path = filedialog.asksaveasfilename(title="Save decrypted file as...", defaultextension="", filetypes=[("All files", ".")])
                 if not out_path:
-                    # user cancelled save dialog
                     return
                 try:
-                    # Use the existing decrypt_file which expects binary .enc input
                     self.secure_messaging_tool.decrypt_file(file_path, out_path)
                     show_toast(self.root, f"File decrypted and saved to:\n{out_path}", duration=2200)
                 except InvalidToken:
                     messagebox.showerror("Error", "Decryption failed: Invalid key or corrupted file (InvalidToken).")
                 except Exception as e:
                     messagebox.showerror("Error", f"Failed to decrypt file: {e}")
-
         except Exception as e:
             messagebox.showerror("Error", f"Failed to load file: {e}")
 
     def select_file_to_decrypt(self):
         file_path = filedialog.askopenfilename(filetypes=[("Encrypted Files", "*.enc")])
         if file_path:
-            output_path = filedialog.asksaveasfilename(defaultextension="", filetypes=[("All files", "*.*")])
+            output_path = filedialog.asksaveasfilename(defaultextension="", filetypes=[("All files", ".")])
             if output_path:
                 try:
                     self.secure_messaging_tool.decrypt_file(file_path, output_path)
-                    show_toast(self.root, f"File decrypted and saved to {output_path}", duration=2000)
+                    show_toast(self.root, f"File decrypted and saved to {output_path}")
                 except InvalidToken:
                     messagebox.showerror("Error", "Decryption failed: Invalid key or corrupted file (InvalidToken).")
                 except Exception as e:
                     messagebox.showerror("Error", f"Failed to decrypt file: {e}")
 
+# Animate title padding to "rise" effect on tab change
+def animate_title_raise(title_label, raise_up=True, steps=4, dist=8, step_delay=30):
+    # current pad may be tuple (top,bottom) or int; store in attribute
+    current = getattr(title_label, "_pad_top", 14)
+    target = 14 - dist if raise_up else 14
+    # clamp
+    target = max(6, target)
+    step = (target - current) / steps
+    def step_anim(i=0):
+        nonlocal current
+        if i >= steps:
+            title_label._pad_top = target
+            title_label.pack_configure(pady=(int(title_label._pad_top), 6))
+            # final font weight
+            if raise_up:
+                title_label.config(font=("Segoe UI", 16, "bold"))
+            else:
+                title_label.config(font=("Segoe UI", 16, "normal"))
+            return
+        current += step
+        title_label._pad_top = current
+        title_label.pack_configure(pady=(int(current), 6))
+        title_label.after(step_delay, step_anim, i+1)
+    step_anim()
+
 def show_banner():
     banner = """
-                ███████╗███████╗ ██████╗██╗   ██╗██████╗ ███████╗██████╗
-                ██╔════╝██╔════╝██╔════╝██║   ██║██╔══██╗██╔════╝██╔══██╗
-                ███████╗█████╗  ██║     ██║   ██║██████╔╝█████╗  ██║  ██║
-                ╚════██║██╔══╝  ██║     ██║   ██║██╔══██╗██╔══╝  ██║  ██║
-                ███████║███████╗╚██████╗╚██████╔╝██║  ██║███████╗██████╔╝
-                ╚══════╝╚══════╝ ╚═════╝ ╚═════╝ ╚═╝  ╚═╝╚══════╝╚═════╝
-
-                            ████████╗ ██████╗  ██████╗ ██╗
-                            ╚══██╔══╝██╔═══██╗██╔═══██╗██║
-                               ██║   ██║   ██║██║   ██║██║
-                               ██║   ██║   ██║██║   ██║██║
-                               ██║   ╚██████╔╝╚██████╔╝███████╗
-                               ╚═╝    ╚═════╝  ╚═════╝ ╚══════╝
-    """
+ ███████╗███████╗ ██████╗██╗   ██╗██████╗ ███████╗██████╗
+ ██╔════╝██╔════╝██╔════╝██║   ██║██╔══██╗██╔════╝██╔══██╗
+ ███████╗█████╗  ██║     ██║   ██║██████╔╝█████╗  ██║  ██║
+ ╚════██║██╔══╝  ██║     ██║   ██║██╔══██╗██╔══╝  ██║  ██║
+ ███████║███████╗╚██████╗╚██████╔╝██║  ██║███████╗██████╔╝
+ ╚══════╝╚══════╝ ╚═════╝ ╚═════╝ ╚═╝  ╚═╝╚══════╝╚═════╝
+"""
     print(banner)
 
-if __name__ == "__main__":
+if _name_ == "_main_":
     show_banner()
 
-    # Create root first so messagebox works
     root = tk.Tk()
-    root.withdraw()  # hide window while key init may show messagebox
+    root.withdraw()
 
-    # Initialize secure tool (messagebox inside will now work)
     secure_messaging_tool = SecureMessagingTool()
 
-    # Now continue building UI
     root.title("Secure Messaging Tool - Professional Edition")
     root.geometry("1000x700")
+    root.minsize(700, 480)
     root.configure(bg="#081129")
     try:
         root.attributes("-alpha", 0.98)
     except Exception:
         pass
 
-    # If a key-info messagebox was shown, main window will reappear now:
     root.deiconify()
 
     style = ttk.Style()
@@ -344,14 +397,43 @@ if __name__ == "__main__":
         style.theme_use("clam")
     except Exception:
         pass
-    style.configure("TNotebook", background="#081129", borderwidth=0)
-    style.configure("TNotebook.Tab", background="#0b1220", foreground="#c7d2fe", padding=(12, 8))
+
+    # Top title area (will animate on tab change)
+    top_frame = tk.Frame(root, bg="#081129")
+    top_frame.pack(fill="x")
+    title_label = tk.Label(top_frame, text="Secure Messaging Tool", font=("Segoe UI", 16, "normal"), bg="#081129", fg="#e6f0ff")
+    title_label._pad_top = 14
+    title_label.pack(pady=(title_label._pad_top, 6))
+
+    status_var = tk.StringVar(value="Ready")
+    status_label = tk.Label(root, textvariable=status_var, bg="#081129", fg="#9ca3af", anchor="w")
+    status_label.pack(fill=tk.X, side=tk.BOTTOM)
+
     tab_control = ttk.Notebook(root)
-    tab_control.pack(expand=1, fill="both", padx=12, pady=12)
+    tab_control.pack(expand=1, fill="both", padx=12, pady=(6,12))
+
     encryption_tab = tk.Frame(tab_control, bg="#0b1220")
     decryption_tab = tk.Frame(tab_control, bg="#071027")
     tab_control.add(encryption_tab, text="Encryption")
     tab_control.add(decryption_tab, text="Decryption")
-    encryption_window = EncryptionWindow(encryption_tab, secure_messaging_tool, root)
-    decryption_window = DecryptionWindow(decryption_tab, secure_messaging_tool, root)
+
+    # Build windows, pass title_label for animations
+    encryption_window = EncryptionWindow(encryption_tab, secure_messaging_tool, root, title_label)
+    decryption_window = DecryptionWindow(decryption_tab, secure_messaging_tool, root, title_label)
+
+    # Bind tab change to animate title and update status / visual
+    def on_tab_changed(event):
+        current = tab_control.index(tab_control.select())
+        if current == 0:
+            status_var.set("Encryption tab active")
+            # rise the title a bit for emphasis
+            animate_title_raise(title_label, raise_up=True)
+        else:
+            status_var.set("Decryption tab active")
+            animate_title_raise(title_label, raise_up=False)
+    tab_control.bind("<<NotebookTabChanged>>", on_tab_changed)
+
+    # initial animation for the default tab
+    root.after(300, lambda: animate_title_raise(title_label, raise_up=True))
+
     root.mainloop()
